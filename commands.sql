@@ -1,6 +1,6 @@
 -- Business Question: "During the summer months (June 1 - August 31) for the available data, what were the top three genres that customers rented?"
 
--- Summary Table QUERY
+-- Summary Table Query
 SELECT cat.name AS genre, COUNT(r.rental_id) AS rental_count
 FROM rental AS r
 INNER JOIN inventory AS i ON r.inventory_id = i.inventory_id
@@ -27,7 +27,6 @@ AND cat.name IN ('Sports', 'Animation', 'Sci-Fi')
 ORDER BY r.rental_date DESC;
 
 -- User defined function on first and last name columns.
-
 CREATE OR REPLACE FUNCTION get_customer_name(first_name VARCHAR(45), last_name VARCHAR(45))
 RETURNS VARCHAR(60) AS $$
 BEGIN
@@ -112,6 +111,7 @@ WHERE r.rental_date BETWEEN '2005-06-01' AND '2005-09-01'
 AND cat.name IN (SELECT unnest(get_top_three_genres()))
 ORDER BY r.rental_date DESC;
 
+-- Troubleshooting Queries
 SELECT * FROM rental_details
 SELECT COUNT(rental_id) FROM rental_details
 DELETE FROM rental_details;
