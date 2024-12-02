@@ -12,7 +12,6 @@ GROUP BY cat.name
 ORDER BY rental_count DESC
 LIMIT 3;
 
-
 -- Detail Table Query
 SELECT r.rental_date, cust.first_name, cust.last_name, f.title AS movie, cat.name AS genre
 FROM rental AS r
@@ -97,8 +96,6 @@ GROUP BY cat.name
 ORDER BY rental_count DESC
 LIMIT 3;
 
-
-
 -- Populate rental_details
 INSERT INTO rental_details
 SELECT r.rental_id, r.rental_date, cust.customer_id, get_customer_name(cust.first_name, cust.last_name) AS customer_name, f.title AS movie_title, cat.name AS genre, f.film_id, cat.category_id
@@ -112,69 +109,55 @@ WHERE r.rental_date BETWEEN '2005-06-01' AND '2005-09-01'
 AND cat.name IN (SELECT unnest(get_top_three_genres()))
 ORDER BY r.rental_date DESC;
 
--- here down, probably gut it and restart
-
--- Trigger to continually update the summary table as data is added to the detail table
-CREATE OR REPLACE FUNCTION update_rental_summary()
-RETURNS TRIGGER AS $$
+-- Update the summary table when the detail table is updated with new data
+CREATE OR REPLACE FUNCTION update_summary()
+RETURNS TRIGGER
+AS $$
 BEGIN
-    -- Check if the genre already exists in the summary table
-    IF EXISTS (
-        SELECT 1 FROM rental_summary WHERE genre = NEW.genre
-    ) THEN
-        -- Increment the total_rentals for the existing genre
-        UPDATE rental_summary
-        SET total_rentals = total_rentals + 1
-        WHERE genre = NEW.genre;
-    ELSE
-        -- Insert a new row for the genre if it does not exist
-        INSERT INTO rental_summary (genre, total_rentals)
-        VALUES (NEW.genre, 1);
-    END IF;
+	DELETE FROM rental_summary;
 
-    RETURN NULL; -- The trigger does not need to return anything
+	INSERT INTO rental_summary
+	SELECT genre, COUNT(rental_id) AS rental_count
+	FROM rental_details
+	GROUP BY genre
+	ORDER BY rental_count DESC;
+
+	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create the trigger for adding data to rental detail
-CREATE TRIGGER trg_update_summary_insert
-AFTER INSERT ON rental_details
-FOR EACH ROW
-EXECUTE FUNCTION update_rental_summary();
+-- Create the trigger 
+CREATE TRIGGER auto_summary
+AFTER INSERT
+ON rental_details
+FOR EACH STATEMENT
+EXECUTE PROCEDURE update_summary();
 
--- Trigger for removing data from the detailed table (mostly for troubleshooting)
-CREATE OR REPLACE FUNCTION update_rental_summary_on_delete()
-RETURNS TRIGGER AS $$
+-- Update the summary table when data is deleted from the detail table (mainly for troubleshooting)
+CREATE OR REPLACE FUNCTION update_summary_on_delete()
+RETURNS TRIGGER
+AS $$
 BEGIN
-    -- Check if the genre exists in the summary table
-    IF EXISTS (
-        SELECT 1 FROM rental_summary WHERE genre = OLD.genre
-    ) THEN
-        -- Decrement the total_rentals for the genre
-        UPDATE rental_summary
-        SET total_rentals = total_rentals - 1
-        WHERE genre = OLD.genre;
+    DELETE FROM rental_summary;
 
-        -- If total_rentals reaches 0, delete the genre entry from the summary table
-        DELETE FROM rental_summary
-        WHERE genre = OLD.genre AND total_rentals <= 0;
-    END IF;
+    INSERT INTO rental_summary
+    SELECT genre, COUNT(rental_id) AS rental_count
+    FROM rental_details
+    GROUP BY genre
+    ORDER BY rental_count DESC;
 
-    RETURN NULL; -- The trigger does not need to return anything
+    RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create the trigger for deleting data 
-CREATE TRIGGER trg_update_summary_delete
-AFTER DELETE ON rental_details
-FOR EACH ROW
-EXECUTE FUNCTION update_rental_summary_on_delete();
+-- Create the trigger
+CREATE TRIGGER auto_summary_delete
+AFTER DELETE
+ON rental_details
+FOR EACH STATEMENT
+EXECUTE PROCEDURE update_summary_on_delete();
 
-
-
-
-
--- Troubleshooting Queries
+-- Troubleshooting Queries ---------------------------------------------------------
 INSERT INTO rental_details (rental_date, customer_id, customer_name, movie_title, genre, film_id, category_id)
 VALUES (
     '2005-07-01 14:30:00',
