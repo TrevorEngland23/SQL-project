@@ -62,6 +62,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+
 -- Create summary table
 CREATE TABLE rental_summary (
 genre VARCHAR(25),
@@ -96,7 +97,7 @@ GROUP BY cat.name
 ORDER BY rental_count DESC
 LIMIT 3;
 
-SELECT * FROM rental_summary
+
 
 -- Populate rental_details
 INSERT INTO rental_details
@@ -111,8 +112,93 @@ WHERE r.rental_date BETWEEN '2005-06-01' AND '2005-09-01'
 AND cat.name IN (SELECT unnest(get_top_three_genres()))
 ORDER BY r.rental_date DESC;
 
+-- here down, probably gut it and restart
+
+-- Trigger to continually update the summary table as data is added to the detail table
+CREATE OR REPLACE FUNCTION update_rental_summary()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Check if the genre already exists in the summary table
+    IF EXISTS (
+        SELECT 1 FROM rental_summary WHERE genre = NEW.genre
+    ) THEN
+        -- Increment the total_rentals for the existing genre
+        UPDATE rental_summary
+        SET total_rentals = total_rentals + 1
+        WHERE genre = NEW.genre;
+    ELSE
+        -- Insert a new row for the genre if it does not exist
+        INSERT INTO rental_summary (genre, total_rentals)
+        VALUES (NEW.genre, 1);
+    END IF;
+
+    RETURN NULL; -- The trigger does not need to return anything
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create the trigger for adding data to rental detail
+CREATE TRIGGER trg_update_summary_insert
+AFTER INSERT ON rental_details
+FOR EACH ROW
+EXECUTE FUNCTION update_rental_summary();
+
+-- Trigger for removing data from the detailed table (mostly for troubleshooting)
+CREATE OR REPLACE FUNCTION update_rental_summary_on_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Check if the genre exists in the summary table
+    IF EXISTS (
+        SELECT 1 FROM rental_summary WHERE genre = OLD.genre
+    ) THEN
+        -- Decrement the total_rentals for the genre
+        UPDATE rental_summary
+        SET total_rentals = total_rentals - 1
+        WHERE genre = OLD.genre;
+
+        -- If total_rentals reaches 0, delete the genre entry from the summary table
+        DELETE FROM rental_summary
+        WHERE genre = OLD.genre AND total_rentals <= 0;
+    END IF;
+
+    RETURN NULL; -- The trigger does not need to return anything
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create the trigger for deleting data 
+CREATE TRIGGER trg_update_summary_delete
+AFTER DELETE ON rental_details
+FOR EACH ROW
+EXECUTE FUNCTION update_rental_summary_on_delete();
+
+
+
+
+
 -- Troubleshooting Queries
+INSERT INTO rental_details (rental_date, customer_id, customer_name, movie_title, genre, film_id, category_id)
+VALUES (
+    '2005-07-01 14:30:00',
+    131,                    -- customer_id (should exist in the customer table)
+    'Monica Hicks',             -- customer_name
+    'River Outlaw',         -- movie_title
+    'Sports',               -- genre
+    733,                    -- film_id (should exist in the film table)
+    15                      -- category_id (should exist in the category table)
+);
+
+DELETE FROM rental_details
+WHERE rental_date = '2005-07-01 14:30:00'
+  AND customer_id = 131
+  AND movie_title = 'River Outlaw';
+
+SELECT * 
+FROM rental_details
+WHERE customer_id = 131;
+
+
+SELECT * FROM rental_summary
 SELECT * FROM rental_details
 SELECT COUNT(rental_id) FROM rental_details
 DELETE FROM rental_details;
-DROP TABLE rental_details
+DROP TABLE rental_details;
+DROP TABLE rental_summary
