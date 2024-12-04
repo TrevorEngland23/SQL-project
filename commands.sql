@@ -157,6 +157,32 @@ ON rental_details
 FOR EACH STATEMENT
 EXECUTE PROCEDURE update_summary_on_delete();
 
+-- Create procedure to refresh table data
+
+CREATE OR REPLACE PROCEDURE refresh_summary_and_details()
+AS $$
+BEGIN
+	DELETE FROM rental_details;
+
+	INSERT INTO rental_details
+	SELECT r.rental_id, r.rental_date, cust.customer_id, 		get_customer_name(cust.first_name, cust.last_name) AS 		customer_name, f.title AS movie_title, cat.name AS 		genre, f.film_id, cat.category_id
+	FROM rental AS r
+	INNER JOIN inventory AS i ON r.inventory_id = 				i.inventory_id
+	INNER JOIN film AS f ON i.film_id = f.film_id
+	INNER JOIN film_category AS fc ON f.film_id = fc.film_id
+	INNER JOIN category AS cat ON fc.category_id = 			cat.category_id
+	INNER JOIN customer as cust ON r.customer_id = 			cust.customer_id
+	WHERE r.rental_date BETWEEN '2005-06-01' AND '2005-09-01'
+	AND cat.name IN (SELECT unnest(get_top_three_genres()))
+	ORDER BY r.rental_date DESC;
+
+	RETURN;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Call the procedure
+CALL refresh_summary_and_details();
+
 -- Troubleshooting Queries ---------------------------------------------------------
 INSERT INTO rental_details (rental_date, customer_id, customer_name, movie_title, genre, film_id, category_id)
 VALUES (
