@@ -65,17 +65,11 @@ FOREIGN KEY(category_id) REFERENCES category(category_id)
 );
 
 -- Populate rental_summary
-INSERT INTO rental_summary(genre, total_rentals)
-SELECT cat.name AS genre, COUNT(r.rental_id) AS rental_count
-FROM rental AS r
-INNER JOIN inventory AS i ON r.inventory_id = i.inventory_id
-INNER JOIN film AS f ON i.film_id = f.film_id
-INNER JOIN film_category AS fc ON f.film_id = fc.film_id
-INNER JOIN category AS cat ON fc.category_id = cat.category_id
-WHERE r.rental_date BETWEEN '2005-06-01' AND '2005-09-01'
-GROUP BY cat.name
-ORDER BY rental_count DESC
-LIMIT 3;
+INSERT INTO rental_summary
+SELECT genre, COUNT(rental_id) AS rental_count
+FROM rental_details
+GROUP BY genre
+ORDER BY rental_count DESC;
 
 -- Populate rental_details
 INSERT INTO rental_details
@@ -163,47 +157,61 @@ $$ LANGUAGE plpgsql;
 CALL refresh_summary_and_details();
 
 -- Troubleshooting Queries ---------------------------------------------------------
+
+-- General queries for testing/troubleshooting
+DROP TABLE rental_summary
+DROP TABLE rental_details;
+
+SELECT * FROM rental WHERE customer_id = 85;
+SELECT * FROM rental_summary
+SELECT * FROM rental_details WHERE customer_id = 85;
+
+-- Used while troubleshooting the refresh procedure with csv
+DELETE FROM rental_details;
+DELETE FROM rental_summary;
+
+-- Manual insert in case csv file doesn't suffice for credit
 INSERT INTO rental (rental_date, inventory_id, customer_id, return_date, staff_id)
 VALUES (
-    '2005-06-23',
-    130,
-    85,
-    '2005-07-01',
-    2 
-);
-
-SELECT DISTINCT i.inventory_id
-FROM inventory AS i
-INNER JOIN film AS f ON i.film_id = f.film_id
-INNER JOIN film_category AS fc ON f.film_id = fc.film_id
-INNER JOIN category AS cat ON fc.category_id = cat.category_id
-WHERE cat.name IN (
-    SELECT genre
-    FROM rental_summary
+	'2005-06-23',
+	36,
+	85,
+	'2005-07-01',
+	1
 )
-ORDER BY i.inventory_id;
 
+-- Show the data before the CSV is imported
+SELECT * FROM rental 
+WHERE customer_id = 85
+AND return_date BETWEEN '2005-06-01' AND '2005-09-01'
 
-SELECT * FROM inventory
-
-
-
+-- Finding the data to use in my CSV to show procedure works
+SELECT * FROM film_category WHERE category_id = 2;
+SELECT * FROM inventory WHERE film_id = 349;
+-- Show the data from the rental table after the CSV is imported
 SELECT * FROM rental
-WHERE customer_id = 85 AND inventory_id = 152;
+WHERE customer_id = 85
+AND rental_date BETWEEN '2005-06-01' AND '2005-09-01'
 
+-- After calling the stored procedure, show the data is is populated in the rental_details table
+SELECT * FROM rental_details
+WHERE customer_id = 85;
+
+-- Show the count totals after the refresh
+SELECT * FROM rental_summary;
+
+
+-- Delete the data that came from the CSV, call refresh() again and show the data popualated once more
 DELETE FROM rental
-WHERE customer_id = 85 AND inventory_id = 152;
+WHERE rental_date BETWEEN '2005-06-01' AND '2005-09-01'
+AND customer_id = 85
+AND inventory_id IN (616, 617, 618, 1589, 1590, 1591, 1592, 1593, 1594, 1595, 2260, 2261, 2262, 2263, 2264, 2265, 2266, 2267);
 
-SELECT * FROM rental_summary
-SELECT * FROM rental_details
-
-SELECT * FROM rental_details
-WHERE customer_id = 85 
-
-SELECT COUNT(rental_id) FROM rental_details
-DELETE FROM rental_details;
-DROP TABLE rental_details;
-DROP TABLE rental_summary
+-- Used /copy from psql instead
+Copy rental(rental_date, inventory_id, customer_id, return_date, staff_id, last_update)
+FROM '/Users/trevorengland/Desktop/SQL-project/data.csv'
+DELIMITER ',' 
+CSV HEADER;
 
 -- QUERIES FROM THE BEGINNING
 
