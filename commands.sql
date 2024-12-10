@@ -21,8 +21,7 @@ $$ LANGUAGE plpgsql
 -- User Defined Function for dynamically populating detailed table with top three genres from the summary table
 CREATE OR REPLACE FUNCTION get_top_three_genres()
 RETURNS VARCHAR[] AS $$
-DECLARE
-    top_three_genres_list VARCHAR[];
+DECLARE top_three_genres_list VARCHAR[];
 BEGIN
     SELECT array_agg(genre)
     INTO top_three_genres_list
@@ -108,30 +107,6 @@ ON rental_details
 FOR EACH STATEMENT
 EXECUTE PROCEDURE update_summary();
 
--- Update the summary table when data is deleted from the detail table (mainly for troubleshooting)
-CREATE OR REPLACE FUNCTION update_summary_on_delete()
-RETURNS TRIGGER
-AS $$
-BEGIN
-    DELETE FROM rental_summary;
-
-    INSERT INTO rental_summary
-    SELECT genre, COUNT(rental_id) AS rental_count
-    FROM rental_details
-    GROUP BY genre
-    ORDER BY rental_count DESC;
-
-    RETURN OLD;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create the trigger
-CREATE TRIGGER auto_summary_delete
-AFTER DELETE
-ON rental_details
-FOR EACH STATEMENT
-EXECUTE PROCEDURE update_summary_on_delete();
-
 -- Create procedure to refresh table data
 CREATE OR REPLACE PROCEDURE refresh_summary_and_details()
 AS $$
@@ -156,7 +131,7 @@ $$ LANGUAGE plpgsql;
 -- Call the procedure
 CALL refresh_summary_and_details();
 
--- Troubleshooting Queries ---------------------------------------------------------
+-- Troubleshooting Queries ----------------------------
 
 -- General queries for testing/troubleshooting
 DROP TABLE rental_summary
@@ -174,7 +149,7 @@ DELETE FROM rental_summary;
 INSERT INTO rental (rental_date, inventory_id, customer_id, return_date, staff_id)
 VALUES (
 	'2005-06-23',
-	36,
+	616,
 	85,
 	'2005-07-01',
 	1
@@ -239,4 +214,3 @@ WHERE r.rental_date BETWEEN '2005-06-01' AND '2005-09-01'
 AND cat.name IN ('Sports', 'Animation', 'Sci-Fi') 
 -- here we may be able to create a function that populates the data based on the the summary table
 ORDER BY r.rental_date DESC;
-
