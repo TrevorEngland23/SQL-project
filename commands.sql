@@ -134,12 +134,36 @@ CALL refresh_summary_and_details();
 -- Troubleshooting Queries ----------------------------
 
 -- General queries for testing/troubleshooting
-DROP TABLE rental_summary
+DROP TABLE rental_summary;
 DROP TABLE rental_details;
+--------
+SELECT *
+FROM rental_summary;
 
-SELECT * FROM rental WHERE customer_id = 85;
-SELECT * FROM rental_summary
-SELECT * FROM rental_details WHERE customer_id = 85;
+SELECT *
+FROM rental_details;
+
+-- Show the count totals after the refresh
+SELECT * 
+FROM rental_summary;
+
+-- Delete the data that came from the CSV, call refresh() again and show the data popualated once more
+DELETE FROM rental
+WHERE rental_date BETWEEN '2005-06-01' AND '2005-09-01'
+AND customer_id = 85
+AND inventory_id IN (616, 617, 618, 1589, 1590, 1591, 1592, 1593, 1594, 1595, 2260, 2261, 2262, 2263, 2264, 2265, 2266, 2267);
+
+----------
+SELECT * 
+FROM rental 
+WHERE customer_id = 85;
+
+SELECT * 
+FROM rental_summary
+
+SELECT * 
+FROM rental_details 
+WHERE customer_id = 85;
 
 -- Used while troubleshooting the refresh procedure with csv
 DELETE FROM rental_details;
@@ -155,32 +179,25 @@ VALUES (
 	1
 )
 
+DELETE FROM rental
+WHERE rental_date = '2005-06-23'
+AND inventory_id = 616
+AND customer_id = 85;
+
 -- Show the data before the CSV is imported
-SELECT * FROM rental 
+SELECT * 
+FROM rental 
 WHERE customer_id = 85
 AND return_date BETWEEN '2005-06-01' AND '2005-09-01'
 
 -- Finding the data to use in my CSV to show procedure works
-SELECT * FROM film_category WHERE category_id = 2;
-SELECT * FROM inventory WHERE film_id = 349;
--- Show the data from the rental table after the CSV is imported
-SELECT * FROM rental
-WHERE customer_id = 85
-AND rental_date BETWEEN '2005-06-01' AND '2005-09-01'
+SELECT * 
+FROM film_category 
+WHERE category_id = 2;
 
--- After calling the stored procedure, show the data is is populated in the rental_details table
-SELECT * FROM rental_details
-WHERE customer_id = 85;
-
--- Show the count totals after the refresh
-SELECT * FROM rental_summary;
-
-
--- Delete the data that came from the CSV, call refresh() again and show the data popualated once more
-DELETE FROM rental
-WHERE rental_date BETWEEN '2005-06-01' AND '2005-09-01'
-AND customer_id = 85
-AND inventory_id IN (616, 617, 618, 1589, 1590, 1591, 1592, 1593, 1594, 1595, 2260, 2261, 2262, 2263, 2264, 2265, 2266, 2267);
+SELECT * 
+FROM inventory 
+WHERE film_id = 349;
 
 -- Used /copy from psql instead
 Copy rental(rental_date, inventory_id, customer_id, return_date, staff_id, last_update)
@@ -214,3 +231,4 @@ WHERE r.rental_date BETWEEN '2005-06-01' AND '2005-09-01'
 AND cat.name IN ('Sports', 'Animation', 'Sci-Fi') 
 -- here we may be able to create a function that populates the data based on the the summary table
 ORDER BY r.rental_date DESC;
+
